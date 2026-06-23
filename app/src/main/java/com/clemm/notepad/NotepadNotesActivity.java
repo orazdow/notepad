@@ -42,6 +42,7 @@ public class NotepadNotesActivity extends AppCompatActivity {
     private static final int REQUEST_IMPORT_NOTES = 4;
 
     private NoteRepository noteRepository;
+    private NoteListAdapter noteListAdapter;
 
     Parcelable listViewState;
 
@@ -535,7 +536,9 @@ public class NotepadNotesActivity extends AppCompatActivity {
             this.selectedNoteIds.add(noteId);
         }
         setTitle(this.selectedNoteIds.size() + " selected");
-        refreshNoteList();
+        if (this.noteListAdapter != null) {
+            this.noteListAdapter.notifyDataSetChanged();
+        }
     }
 
     private void exportSelectedNotes() {
@@ -616,7 +619,8 @@ public class NotepadNotesActivity extends AppCompatActivity {
     }
 
     public void refreshNoteList() {
-        ((ListView) findViewById(R.id.notesListView)).setAdapter((ListAdapter) new NoteListAdapter(this, this.noteRepository.getNotes(PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getInt("sort_mode", 1)), this.selectionMode, this.selectedNoteIds));
+        this.noteListAdapter = new NoteListAdapter(this, this.noteRepository.getNotes(PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getInt("sort_mode", 1)), this.selectionMode, this.selectedNoteIds);
+        ((ListView) findViewById(R.id.notesListView)).setAdapter((ListAdapter) this.noteListAdapter);
     }
 
     private void applySelectedTheme() {
