@@ -29,6 +29,7 @@ keystore.properties
 __pycache__/
 scripts/__pycache__/
 scripts/*.csv
+scripts/*.json
 
 # Logs
 *.log

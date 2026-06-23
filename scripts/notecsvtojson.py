@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def convert_note_csv(input_path):
-    output_path = input_path.with_suffix(".json")
+    output_path = input_path.with_name(f"{input_path.stem}-backup.json")
     if output_path.exists():
         print(f"Conflict: {output_path} already exists")
         return 1
