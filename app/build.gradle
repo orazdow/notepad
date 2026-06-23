@@ -9,7 +9,7 @@ android {
     defaultConfig {
         applicationId "com.clemm.notepad"
         minSdk 23
-        targetSdk 29
+        targetSdk 35
         versionCode 13
         versionName "3.0.1"
     }

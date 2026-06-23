@@ -5,8 +5,8 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
+import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Parcelable;
 import android.preference.PreferenceManager;
 import android.view.Menu;
@@ -20,14 +20,15 @@ import android.widget.ListView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AlertDialog;
-import androidx.core.app.ActivityCompat;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import androidx.core.content.ContextCompat;
 
 public class NotepadNotesActivity extends AppCompatActivity {
+
+    private static final int REQUEST_SETTINGS = 0;
+    private static final int REQUEST_EXPORT_NOTE = 2;
 
     private NoteRepository noteRepository;
 
@@ -435,31 +436,14 @@ public class NotepadNotesActivity extends AppCompatActivity {
     }
 
     public void exportNote(long j) {
-        Toast toastMakeText;
-        if (ContextCompat.checkSelfPermission(this, "android.permission.WRITE_EXTERNAL_STORAGE") != 0) {
-            this.pendingExportNoteId = j;
-            ActivityCompat.requestPermissions(this, new String[]{"android.permission.WRITE_EXTERNAL_STORAGE"}, 1);
-            return;
-        }
         Note selectedNote = this.noteRepository.getNote(j);
-        File file = new File(Environment.getExternalStorageDirectory().toString() + "/Notepad");
-        if (!file.exists() && !file.mkdirs()) {
-            Toast.makeText(this, getResources().getString(R.string.failed_to_create_directory_for_notes), 1).show();
-        }
-        File file2 = new File(file, selectedNote.getTitle().replaceAll("\\p{Punct}", "").trim() + ".txt");
-        try {
-            if (file.canWrite()) {
-                BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(file2));
-                bufferedWriter.write(selectedNote.getContent());
-                bufferedWriter.close();
-                toastMakeText = Toast.makeText(this, getResources().getString(R.string.note_saved_to) + file2.getPath(), 1);
-            } else {
-                toastMakeText = Toast.makeText(this, getResources().getString(R.string.cannot_write_note_file) + file2.getPath(), 1);
-            }
-            toastMakeText.show();
-        } catch (Exception e) {
-            Toast.makeText(this, e.getLocalizedMessage(), 0).show();
-        }
+        this.pendingExportNoteId = j;
+
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_TITLE, buildExportFileName(selectedNote));
+        startActivityForResult(intent, REQUEST_EXPORT_NOTE);
     }
 
     public void openNoteEditor(long j) {
@@ -485,7 +469,7 @@ public class NotepadNotesActivity extends AppCompatActivity {
     }
 
     private void openSettings() {
-        startActivityForResult(new Intent(this, (Class<?>) SettingsActivity.class), 0);
+        startActivityForResult(new Intent(this, (Class<?>) SettingsActivity.class), REQUEST_SETTINGS);
     }
 
     private void showSortDialog() {
@@ -513,8 +497,16 @@ public class NotepadNotesActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int i, int i2, Intent intent) {
         super.onActivityResult(i, i2, intent);
-        finish();
-        startActivity(new Intent(this, (Class<?>) NotepadNotesActivity.class));
+        if (i == REQUEST_EXPORT_NOTE) {
+            if (i2 == RESULT_OK && intent != null && intent.getData() != null) {
+                writeNoteToUri(intent.getData());
+            }
+            return;
+        }
+        if (i == REQUEST_SETTINGS) {
+            finish();
+            startActivity(new Intent(this, (Class<?>) NotepadNotesActivity.class));
+        }
     }
 
     @Override
@@ -556,23 +548,35 @@ public class NotepadNotesActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onRequestPermissionsResult(int i, String[] strArr, int[] iArr) {
-        if (i != 1) {
-            return;
-        }
-        if (iArr.length <= 0 || iArr[0] != 0) {
-            Toast.makeText(this, R.string.permissions_not_granted, 0).show();
-        } else {
-            exportWithUnlock(this.pendingExportNoteId);
-        }
-    }
-
-    @Override
     protected void onResume() {
         super.onResume();
         refreshNoteList();
         if (this.listViewState != null) {
             ((ListView) findViewById(R.id.notesListView)).onRestoreInstanceState(this.listViewState);
+        }
+    }
+
+    private String buildExportFileName(Note note) {
+        String title = note.getTitle() == null ? "" : note.getTitle().replaceAll("\\p{Punct}", "").trim();
+        if (title.isEmpty()) {
+            title = "note-" + note.getId();
+        }
+        return title + ".txt";
+    }
+
+    private void writeNoteToUri(Uri uri) {
+        Note note = this.noteRepository.getNote(this.pendingExportNoteId);
+        if (note == null) {
+            return;
+        }
+        try (OutputStream outputStream = getContentResolver().openOutputStream(uri)) {
+            if (outputStream == null) {
+                throw new IOException("Unable to open export destination");
+            }
+            outputStream.write(note.getContent().getBytes(StandardCharsets.UTF_8));
+            Toast.makeText(this, R.string.saved, 1).show();
+        } catch (IOException e) {
+            Toast.makeText(this, e.getLocalizedMessage(), 0).show();
         }
     }
 }
