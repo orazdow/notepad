@@ -47,6 +47,7 @@ public class NotepadNotesActivity extends AppCompatActivity {
 
     private long pendingExportNoteId = -1;
     private boolean selectionMode = false;
+    private boolean deleteSelectionMode = false;
     private final Set<Long> selectedNoteIds = new HashSet<>();
     private final ArrayList<Long> pendingExportNoteIds = new ArrayList<>();
     private final ArrayList<Note> pendingImportNotes = new ArrayList<>();
@@ -509,8 +510,9 @@ public class NotepadNotesActivity extends AppCompatActivity {
         startActivityForResult(new Intent(this, (Class<?>) SettingsActivity.class), REQUEST_SETTINGS);
     }
 
-    private void enterSelectionMode() {
+    private void enterSelectionMode(boolean deleteSelectionMode) {
         this.selectionMode = true;
+        this.deleteSelectionMode = deleteSelectionMode;
         this.selectedNoteIds.clear();
         setTitle(R.string.select_notes);
         invalidateOptionsMenu();
@@ -519,6 +521,7 @@ public class NotepadNotesActivity extends AppCompatActivity {
 
     private void exitSelectionMode() {
         this.selectionMode = false;
+        this.deleteSelectionMode = false;
         this.selectedNoteIds.clear();
         setTitle(R.string.app_name);
         invalidateOptionsMenu();
@@ -548,6 +551,33 @@ public class NotepadNotesActivity extends AppCompatActivity {
         intent.setType("application/json");
         intent.putExtra(Intent.EXTRA_TITLE, "notepad-backup.json");
         startActivityForResult(intent, REQUEST_EXPORT_SELECTED_NOTES);
+    }
+
+    private void confirmDeleteSelectedNotes() {
+        if (this.selectedNoteIds.isEmpty()) {
+            Toast.makeText(this, R.string.no_notes_selected, 0).show();
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage("Delete " + this.selectedNoteIds.size() + " notes?");
+        builder.setPositiveButton(R.string.delete, new DeleteSelectedNotesClickListener());
+        builder.setNegativeButton(android.R.string.cancel, new DismissDialogClickListener(this));
+        builder.show();
+    }
+
+    class DeleteSelectedNotesClickListener implements DialogInterface.OnClickListener {
+        @Override
+        public void onClick(DialogInterface dialogInterface, int i) {
+            NotepadNotesActivity.this.deleteSelectedNotes();
+        }
+    }
+
+    private void deleteSelectedNotes() {
+        for (Long noteId : new ArrayList<>(this.selectedNoteIds)) {
+            this.noteRepository.deleteNote(noteId);
+        }
+        Toast.makeText(this, R.string.delete, 0).show();
+        exitSelectionMode();
     }
 
     private void openImportPicker() {
@@ -644,8 +674,10 @@ public class NotepadNotesActivity extends AppCompatActivity {
         menu.findItem(R.id.preferences).setVisible(!this.selectionMode);
         menu.findItem(R.id.start_export_selection).setVisible(!this.selectionMode);
         menu.findItem(R.id.import_notes).setVisible(!this.selectionMode);
+        menu.findItem(R.id.start_delete_selection).setVisible(!this.selectionMode);
         menu.findItem(R.id.about).setVisible(!this.selectionMode);
-        menu.findItem(R.id.export_selected).setVisible(this.selectionMode);
+        menu.findItem(R.id.export_selected).setVisible(this.selectionMode && !this.deleteSelectionMode);
+        menu.findItem(R.id.delete_selected).setVisible(this.selectionMode && this.deleteSelectionMode);
         menu.findItem(R.id.cancel_selection).setVisible(this.selectionMode);
         return super.onPrepareOptionsMenu(menu);
     }
@@ -662,13 +694,19 @@ public class NotepadNotesActivity extends AppCompatActivity {
         } else if (itemId == R.id.sorting) {
             showSortDialog();
         } else if (itemId == R.id.start_export_selection) {
-            enterSelectionMode();
+            enterSelectionMode(false);
             return true;
         } else if (itemId == R.id.import_notes) {
             openImportPicker();
             return true;
+        } else if (itemId == R.id.start_delete_selection) {
+            enterSelectionMode(true);
+            return true;
         } else if (itemId == R.id.export_selected) {
             exportSelectedNotes();
+            return true;
+        } else if (itemId == R.id.delete_selected) {
+            confirmDeleteSelectedNotes();
             return true;
         } else if (itemId == R.id.cancel_selection) {
             exitSelectionMode();

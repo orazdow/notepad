@@ -24,12 +24,21 @@
         android:title="@string/import_notes"
         app:showAsAction="never"/>
     <item
+        android:id="@+id/start_delete_selection"
+        android:title="@string/delete"
+        app:showAsAction="never"/>
+    <item
         android:id="@+id/about"
         android:title="@string/about"
         app:showAsAction="never"/>
     <item
         android:id="@+id/export_selected"
         android:title="@string/export"
+        android:visible="false"
+        app:showAsAction="ifRoom"/>
+    <item
+        android:id="@+id/delete_selected"
+        android:title="@string/delete"
         android:visible="false"
         app:showAsAction="ifRoom"/>
     <item
