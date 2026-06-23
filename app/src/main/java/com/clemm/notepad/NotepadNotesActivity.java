@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 public class NotepadNotesActivity extends AppCompatActivity {
 
@@ -35,6 +37,8 @@ public class NotepadNotesActivity extends AppCompatActivity {
     Parcelable listViewState;
 
     private long pendingExportNoteId = -1;
+    private boolean selectionMode = false;
+    private final Set<Long> selectedNoteIds = new HashSet<>();
 
     class EmptyCancelClickListener implements DialogInterface.OnClickListener {
         EmptyCancelClickListener(NotepadNotesActivity notepadNotesActivity) {
@@ -205,6 +209,10 @@ public class NotepadNotesActivity extends AppCompatActivity {
 
         @Override // android.widget.AdapterView.OnItemClickListener
         public void onItemClick(AdapterView<?> adapterView, View view, int i, long j) {
+            if (NotepadNotesActivity.this.selectionMode) {
+                NotepadNotesActivity.this.toggleNoteSelection(j);
+                return;
+            }
             NotepadNotesActivity.this.openNoteWithUnlock(j);
         }
     }
@@ -284,6 +292,10 @@ public class NotepadNotesActivity extends AppCompatActivity {
 
         @Override // android.widget.AdapterView.OnItemLongClickListener
         public boolean onItemLongClick(AdapterView<?> adapterView, View view, int i, long j) {
+            if (NotepadNotesActivity.this.selectionMode) {
+                NotepadNotesActivity.this.toggleNoteSelection(j);
+                return true;
+            }
             NotepadNotesActivity.this.showNoteActions(j);
             return true;
         }
@@ -472,6 +484,36 @@ public class NotepadNotesActivity extends AppCompatActivity {
         startActivityForResult(new Intent(this, (Class<?>) SettingsActivity.class), REQUEST_SETTINGS);
     }
 
+    private void enterSelectionMode() {
+        this.selectionMode = true;
+        this.selectedNoteIds.clear();
+        setTitle(R.string.select_notes);
+        invalidateOptionsMenu();
+        refreshNoteList();
+    }
+
+    private void exitSelectionMode() {
+        this.selectionMode = false;
+        this.selectedNoteIds.clear();
+        setTitle(R.string.app_name);
+        invalidateOptionsMenu();
+        refreshNoteList();
+    }
+
+    private void toggleNoteSelection(long noteId) {
+        if (this.selectedNoteIds.contains(noteId)) {
+            this.selectedNoteIds.remove(noteId);
+        } else {
+            this.selectedNoteIds.add(noteId);
+        }
+        setTitle(this.selectedNoteIds.size() + " selected");
+        refreshNoteList();
+    }
+
+    private void exportSelectedNotes() {
+        Toast.makeText(this, "Export stub: " + this.selectedNoteIds.size() + " selected", 0).show();
+    }
+
     private void showSortDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         ArrayList arrayList = new ArrayList();
@@ -487,7 +529,7 @@ public class NotepadNotesActivity extends AppCompatActivity {
     }
 
     public void refreshNoteList() {
-        ((ListView) findViewById(R.id.notesListView)).setAdapter((ListAdapter) new NoteListAdapter(this, this.noteRepository.getNotes(PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getInt("sort_mode", 1))));
+        ((ListView) findViewById(R.id.notesListView)).setAdapter((ListAdapter) new NoteListAdapter(this, this.noteRepository.getNotes(PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getInt("sort_mode", 1)), this.selectionMode, this.selectedNoteIds));
     }
 
     private void applySelectedTheme() {
@@ -526,6 +568,18 @@ public class NotepadNotesActivity extends AppCompatActivity {
         return true;
     }
 
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        menu.findItem(R.id.add_note).setVisible(!this.selectionMode);
+        menu.findItem(R.id.sorting).setVisible(!this.selectionMode);
+        menu.findItem(R.id.preferences).setVisible(!this.selectionMode);
+        menu.findItem(R.id.start_export_selection).setVisible(!this.selectionMode);
+        menu.findItem(R.id.about).setVisible(!this.selectionMode);
+        menu.findItem(R.id.export_selected).setVisible(this.selectionMode);
+        menu.findItem(R.id.cancel_selection).setVisible(this.selectionMode);
+        return super.onPrepareOptionsMenu(menu);
+    }
+
     @Override // android.app.Activity
     public boolean onOptionsItemSelected(MenuItem menuItem) {
         int itemId = menuItem.getItemId();
@@ -537,6 +591,15 @@ public class NotepadNotesActivity extends AppCompatActivity {
             openSettings();
         } else if (itemId == R.id.sorting) {
             showSortDialog();
+        } else if (itemId == R.id.start_export_selection) {
+            enterSelectionMode();
+            return true;
+        } else if (itemId == R.id.export_selected) {
+            exportSelectedNotes();
+            return true;
+        } else if (itemId == R.id.cancel_selection) {
+            exitSelectionMode();
+            return true;
         }
         return super.onOptionsItemSelected(menuItem);
     }
