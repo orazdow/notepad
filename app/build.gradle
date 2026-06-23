@@ -1,0 +1,26 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "com.clemm.notepad"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.clemm.notepad"
+        minSdk 23
+        targetSdk 29
+        versionCode 13
+        versionName "3.0.1"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "androidx.core:core:1.13.1"
+}

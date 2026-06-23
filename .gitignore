@@ -1,0 +1,37 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Local environment
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Generated Android artifacts
+*.apk
+*.ap_
+*.aab
+*.dex
+
+# Signing secrets
+*.jks
+*.keystore
+keystore.properties
+
+# Java/Kotlin build output
+*.class
+
+# Logs
+*.log
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

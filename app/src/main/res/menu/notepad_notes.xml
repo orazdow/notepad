@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:icon="@android:drawable/ic_menu_edit"
+        android:id="@+id/add_note"
+        android:title="@string/action_edit_note"
+        app:showAsAction="ifRoom"/>
+    <item
+        android:icon="@android:drawable/ic_menu_sort_by_size"
+        android:id="@+id/sorting"
+        android:title="@string/sorting"
+        app:showAsAction="ifRoom"/>
+    <item
+        android:icon="@android:drawable/ic_menu_preferences"
+        android:id="@+id/preferences"
+        android:title="@string/preferences"
+        app:showAsAction="ifRoom"/>
+    <item
+        android:id="@+id/about"
+        android:title="@string/about"
+        app:showAsAction="never"/>
+</menu>
+

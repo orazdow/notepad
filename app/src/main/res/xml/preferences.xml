@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <PreferenceCategory
+        android:title="@string/theme"
+        android:key="pref_key_theme">
+        <CheckBoxPreference
+            android:title="@string/pref_title_use_black_theme"
+            android:key="pref_key_use_black_theme"
+            android:summary="@string/pref_summary_use_black_theme"
+            android:defaultValue="false"/>
+    </PreferenceCategory>
+</PreferenceScreen>
+
