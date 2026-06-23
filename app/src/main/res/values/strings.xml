@@ -14,11 +14,17 @@
     <string name="empty_note">Empty note</string>
     <string name="enter_password">Enter a password</string>
     <string name="export">Export</string>
+    <string name="duplicates_found">Duplicates found</string>
+    <string name="import_as_duplicates">Import as duplicates</string>
+    <string name="import_notes">Import</string>
+    <string name="invalid_backup_file">Invalid backup file</string>
     <string name="incorrect_password">Incorrect password</string>
     <string name="lock">Lock</string>
     <string name="lock_with_password">Lock with password</string>
     <string name="locked">Locked</string>
     <string name="note">Note</string>
+    <string name="no_notes_selected">No notes selected</string>
+    <string name="no_notes_to_import">No notes to import</string>
     <string name="pref_summary_use_black_theme">Use dark theme</string>
     <string name="pref_title_use_black_theme">Dark theme</string>
     <string name="preferences">Preferences</string>
@@ -27,6 +33,7 @@
     <string name="search_menu_title">Search</string>
     <string name="share">Share</string>
     <string name="select_notes">Select notes</string>
+    <string name="skip_duplicates">Skip duplicates</string>
     <string name="sorting">Sorting</string>
     <string name="sure_to_delete">Do you want to delete this note?</string>
     <string name="sure_to_save">Do you want to save this note?</string>

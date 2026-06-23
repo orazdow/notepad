@@ -21,16 +21,25 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AlertDialog;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class NotepadNotesActivity extends AppCompatActivity {
 
     private static final int REQUEST_SETTINGS = 0;
     private static final int REQUEST_EXPORT_NOTE = 2;
+    private static final int REQUEST_EXPORT_SELECTED_NOTES = 3;
+    private static final int REQUEST_IMPORT_NOTES = 4;
 
     private NoteRepository noteRepository;
 
@@ -39,6 +48,8 @@ public class NotepadNotesActivity extends AppCompatActivity {
     private long pendingExportNoteId = -1;
     private boolean selectionMode = false;
     private final Set<Long> selectedNoteIds = new HashSet<>();
+    private final ArrayList<Long> pendingExportNoteIds = new ArrayList<>();
+    private final ArrayList<Note> pendingImportNotes = new ArrayList<>();
 
     class EmptyCancelClickListener implements DialogInterface.OnClickListener {
         EmptyCancelClickListener(NotepadNotesActivity notepadNotesActivity) {
@@ -270,6 +281,20 @@ public class NotepadNotesActivity extends AppCompatActivity {
 
         @Override // android.content.DialogInterface.OnClickListener
         public void onClick(DialogInterface dialogInterface, int i) {
+        }
+    }
+
+    class ImportNotesClickListener implements DialogInterface.OnClickListener {
+
+        private final boolean skipDuplicates;
+
+        ImportNotesClickListener(boolean skipDuplicates) {
+            this.skipDuplicates = skipDuplicates;
+        }
+
+        @Override
+        public void onClick(DialogInterface dialogInterface, int i) {
+            NotepadNotesActivity.this.importPendingNotes(this.skipDuplicates);
         }
     }
 
@@ -511,7 +536,39 @@ public class NotepadNotesActivity extends AppCompatActivity {
     }
 
     private void exportSelectedNotes() {
-        Toast.makeText(this, "Export stub: " + this.selectedNoteIds.size() + " selected", 0).show();
+        if (this.selectedNoteIds.isEmpty()) {
+            Toast.makeText(this, R.string.no_notes_selected, 0).show();
+            return;
+        }
+        this.pendingExportNoteIds.clear();
+        this.pendingExportNoteIds.addAll(this.selectedNoteIds);
+
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        intent.putExtra(Intent.EXTRA_TITLE, "notepad-backup.json");
+        startActivityForResult(intent, REQUEST_EXPORT_SELECTED_NOTES);
+    }
+
+    private void openImportPicker() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        startActivityForResult(intent, REQUEST_IMPORT_NOTES);
+    }
+
+    private void prepareImport(Uri uri) {
+        try {
+            this.pendingImportNotes.clear();
+            this.pendingImportNotes.addAll(readNotesFromJson(uri));
+            if (this.pendingImportNotes.isEmpty()) {
+                Toast.makeText(this, R.string.no_notes_to_import, 0).show();
+                return;
+            }
+            showImportConfirmation(countImportDuplicates(this.pendingImportNotes));
+        } catch (IOException | JSONException e) {
+            Toast.makeText(this, R.string.invalid_backup_file, 0).show();
+        }
     }
 
     private void showSortDialog() {
@@ -545,6 +602,18 @@ public class NotepadNotesActivity extends AppCompatActivity {
             }
             return;
         }
+        if (i == REQUEST_EXPORT_SELECTED_NOTES) {
+            if (i2 == RESULT_OK && intent != null && intent.getData() != null) {
+                writeSelectedNotesToUri(intent.getData());
+            }
+            return;
+        }
+        if (i == REQUEST_IMPORT_NOTES) {
+            if (i2 == RESULT_OK && intent != null && intent.getData() != null) {
+                prepareImport(intent.getData());
+            }
+            return;
+        }
         if (i == REQUEST_SETTINGS) {
             finish();
             startActivity(new Intent(this, (Class<?>) NotepadNotesActivity.class));
@@ -574,6 +643,7 @@ public class NotepadNotesActivity extends AppCompatActivity {
         menu.findItem(R.id.sorting).setVisible(!this.selectionMode);
         menu.findItem(R.id.preferences).setVisible(!this.selectionMode);
         menu.findItem(R.id.start_export_selection).setVisible(!this.selectionMode);
+        menu.findItem(R.id.import_notes).setVisible(!this.selectionMode);
         menu.findItem(R.id.about).setVisible(!this.selectionMode);
         menu.findItem(R.id.export_selected).setVisible(this.selectionMode);
         menu.findItem(R.id.cancel_selection).setVisible(this.selectionMode);
@@ -593,6 +663,9 @@ public class NotepadNotesActivity extends AppCompatActivity {
             showSortDialog();
         } else if (itemId == R.id.start_export_selection) {
             enterSelectionMode();
+            return true;
+        } else if (itemId == R.id.import_notes) {
+            openImportPicker();
             return true;
         } else if (itemId == R.id.export_selected) {
             exportSelectedNotes();
@@ -641,6 +714,139 @@ public class NotepadNotesActivity extends AppCompatActivity {
         } catch (IOException e) {
             Toast.makeText(this, e.getLocalizedMessage(), 0).show();
         }
+    }
+
+    private void writeSelectedNotesToUri(Uri uri) {
+        try (OutputStream outputStream = getContentResolver().openOutputStream(uri)) {
+            if (outputStream == null) {
+                throw new IOException("Unable to open export destination");
+            }
+            outputStream.write(buildSelectedNotesJson().getBytes(StandardCharsets.UTF_8));
+            Toast.makeText(this, R.string.saved, 1).show();
+            exitSelectionMode();
+        } catch (IOException | JSONException e) {
+            Toast.makeText(this, e.getLocalizedMessage(), 0).show();
+        }
+    }
+
+    private String buildSelectedNotesJson() throws JSONException {
+        JSONObject backupJson = new JSONObject();
+        JSONArray notesJson = new JSONArray();
+        backupJson.put("format", "clemm-notepad-backup");
+        backupJson.put("version", 1);
+        backupJson.put("exportedAt", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.US).format(new Date()));
+        backupJson.put("notes", notesJson);
+
+        for (Long noteId : this.pendingExportNoteIds) {
+            Note note = this.noteRepository.getNote(noteId);
+            if (note == null) {
+                continue;
+            }
+            JSONObject noteJson = new JSONObject();
+            noteJson.put("id", note.getId());
+            noteJson.put("title", emptyIfNull(note.getTitle()));
+            noteJson.put("content", emptyIfNull(note.getContent()));
+            noteJson.put("date", emptyIfNull(note.getDate()));
+            noteJson.put("password", emptyIfNull(note.getPassword()));
+            notesJson.put(noteJson);
+        }
+        return backupJson.toString(2);
+    }
+
+    private String emptyIfNull(String value) {
+        return value == null ? "" : value;
+    }
+
+    private ArrayList<Note> readNotesFromJson(Uri uri) throws IOException, JSONException {
+        JSONObject backupJson = new JSONObject(readTextFromUri(uri));
+        JSONArray notesJson = backupJson.getJSONArray("notes");
+        ArrayList<Note> notes = new ArrayList<>();
+        for (int i = 0; i < notesJson.length(); i++) {
+            JSONObject noteJson = notesJson.getJSONObject(i);
+            notes.add(new Note(
+                    0L,
+                    noteJson.optString("date", ""),
+                    noteJson.optString("title", ""),
+                    noteJson.optString("content", ""),
+                    noteJson.optString("password", "")
+            ));
+        }
+        return notes;
+    }
+
+    private String readTextFromUri(Uri uri) throws IOException {
+        InputStream inputStream = getContentResolver().openInputStream(uri);
+        if (inputStream == null) {
+            throw new IOException("Unable to open import source");
+        }
+        try {
+            byte[] buffer = new byte[4096];
+            StringBuilder builder = new StringBuilder();
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                builder.append(new String(buffer, 0, bytesRead, StandardCharsets.UTF_8));
+            }
+            return builder.toString();
+        } finally {
+            inputStream.close();
+        }
+    }
+
+    private void showImportConfirmation(int duplicateCount) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setCancelable(true);
+        if (duplicateCount > 0) {
+            builder.setMessage(duplicateCount + " duplicates found.\nImport " + this.pendingImportNotes.size() + " notes?");
+            builder.setPositiveButton(R.string.skip_duplicates, new ImportNotesClickListener(true));
+            builder.setNegativeButton(R.string.import_as_duplicates, new ImportNotesClickListener(false));
+            builder.setNeutralButton(android.R.string.cancel, new DismissDialogClickListener(this));
+        } else {
+            builder.setTitle(R.string.import_notes);
+            builder.setMessage("Import " + this.pendingImportNotes.size() + " notes?");
+            builder.setPositiveButton(R.string.import_notes, new ImportNotesClickListener(false));
+            builder.setNegativeButton(android.R.string.cancel, new DismissDialogClickListener(this));
+        }
+        builder.show();
+    }
+
+    private int countImportDuplicates(ArrayList<Note> notes) {
+        Set<String> existingNoteKeys = getExistingNoteKeys();
+        int duplicateCount = 0;
+        for (Note note : notes) {
+            if (existingNoteKeys.contains(buildDuplicateKey(note))) {
+                duplicateCount++;
+            }
+        }
+        return duplicateCount;
+    }
+
+    private void importPendingNotes(boolean skipDuplicates) {
+        Set<String> existingNoteKeys = getExistingNoteKeys();
+        int importedCount = 0;
+        for (Note note : this.pendingImportNotes) {
+            String noteKey = buildDuplicateKey(note);
+            if (skipDuplicates && existingNoteKeys.contains(noteKey)) {
+                continue;
+            }
+            this.noteRepository.insertNote(note);
+            existingNoteKeys.add(noteKey);
+            importedCount++;
+        }
+        this.pendingImportNotes.clear();
+        refreshNoteList();
+        Toast.makeText(this, "Imported " + importedCount + " notes", 1).show();
+    }
+
+    private Set<String> getExistingNoteKeys() {
+        Set<String> noteKeys = new HashSet<>();
+        for (Note note : this.noteRepository.getNotes(PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getInt("sort_mode", 1))) {
+            noteKeys.add(buildDuplicateKey(note));
+        }
+        return noteKeys;
+    }
+
+    private String buildDuplicateKey(Note note) {
+        return emptyIfNull(note.getTitle()) + "\n" + emptyIfNull(note.getContent());
     }
 }
 
